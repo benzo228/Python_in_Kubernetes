@@ -5,4 +5,3 @@ metadata:
   namespace: pet-project
 data:
   PORT: "8000"
-  # Позже добавим переменные для БД
