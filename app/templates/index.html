@@ -7,7 +7,11 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         body { padding-top: 2rem; }
-        .task-row:hover { background-color: #f8f9fa; }
+        .task-card { margin-bottom: 1rem; }
+        .task-card .card-body { padding: 1rem; }
+        .comment { background: #f8f9fa; padding: 0.5rem 1rem; border-radius: 8px; margin-bottom: 0.5rem; }
+        .status-badge { font-size: 0.8rem; }
+        .comment-form { margin-top: 0.5rem; }
     </style>
 </head>
 <body>
@@ -19,11 +23,18 @@
             <div class="card-body">
                 <h5 class="card-title">Новая задача</h5>
                 <div class="row g-3">
-                    <div class="col-md-5">
+                    <div class="col-md-4">
                         <input type="text" id="taskTitle" class="form-control" placeholder="Название">
                     </div>
-                    <div class="col-md-5">
-                        <input type="text" id="taskDesc" class="form-control" placeholder="Описание (опционально)">
+                    <div class="col-md-4">
+                        <input type="text" id="taskDesc" class="form-control" placeholder="Описание">
+                    </div>
+                    <div class="col-md-2">
+                        <select id="taskStatus" class="form-select">
+                            <option value="pending">⏳ В ожидании</option>
+                            <option value="in_progress">🔄 В работе</option>
+                            <option value="completed">✅ Завершена</option>
+                        </select>
                     </div>
                     <div class="col-md-2">
                         <button id="addBtn" class="btn btn-primary w-100">➕ Добавить</button>
@@ -32,14 +43,22 @@
             </div>
         </div>
 
+        <!-- Фильтр по статусу -->
+        <div class="mb-3">
+            <label>Фильтр по статусу:</label>
+            <select id="statusFilter" class="form-select w-auto d-inline-block ms-2">
+                <option value="">Все</option>
+                <option value="pending">⏳ В ожидании</option>
+                <option value="in_progress">🔄 В работе</option>
+                <option value="completed">✅ Завершена</option>
+            </select>
+            <button id="filterBtn" class="btn btn-outline-secondary ms-2">Применить</button>
+            <button id="resetFilterBtn" class="btn btn-outline-danger ms-2">Сбросить</button>
+        </div>
+
         <!-- Список задач -->
-        <div class="card">
-            <div class="card-body">
-                <h5 class="card-title">Список задач</h5>
-                <div id="taskList" class="list-group">
-                    <!-- Задачи будут подгружаться сюда -->
-                </div>
-            </div>
+        <div id="taskList">
+            <!-- Задачи будут рендериться сюда -->
         </div>
 
         <!-- Кнопка для получения подов -->
@@ -52,51 +71,178 @@
     <script>
         const API_BASE = '/api';
 
-        // Загрузить все задачи
-        async function loadTasks() {
-            const resp = await fetch(`${API_BASE}/tasks`);
+        // Загрузить задачи с фильтром
+        async function loadTasks(status = '') {
+            const url = status ? `${API_BASE}/tasks?status=${status}` : `${API_BASE}/tasks`;
+            const resp = await fetch(url);
             const tasks = await resp.json();
             const container = document.getElementById('taskList');
             if (tasks.length === 0) {
-                container.innerHTML = '<div class="list-group-item text-muted">Нет задач. Создайте первую!</div>';
+                container.innerHTML = '<div class="alert alert-info">Нет задач. Создайте первую!</div>';
                 return;
             }
-            container.innerHTML = tasks.map(task => `
-                <div class="list-group-item task-row d-flex justify-content-between align-items-center">
-                    <div>
-                        <strong>${task.title}</strong>
-                        ${task.description ? `<span class="text-muted ms-2">${task.description}</span>` : ''}
-                        <span class="badge ${task.completed ? 'bg-success' : 'bg-warning'} ms-2">${task.completed ? '✅' : '⏳'}</span>
-                    </div>
-                    <div>
-                        <button class="btn btn-sm btn-outline-danger me-1" onclick="deleteTask(${task.id})">🗑️</button>
+            container.innerHTML = tasks.map(task => renderTask(task)).join('');
+            // После рендера вешаем обработчики на кнопки комментариев
+            tasks.forEach(task => {
+                const collapseId = `collapseComments-${task.id}`;
+                const btn = document.getElementById(`toggleCommentsBtn-${task.id}`);
+                if (btn) {
+                    btn.addEventListener('click', () => {
+                        const collapse = document.getElementById(collapseId);
+                        if (collapse.classList.contains('show')) {
+                            collapse.classList.remove('show');
+                            btn.textContent = '📝 Показать комментарии';
+                        } else {
+                            collapse.classList.add('show');
+                            btn.textContent = '📝 Скрыть комментарии';
+                            loadComments(task.id);
+                        }
+                    });
+                }
+                // Обработчик отправки комментария
+                const form = document.getElementById(`commentForm-${task.id}`);
+                if (form) {
+                    form.addEventListener('submit', async (e) => {
+                        e.preventDefault();
+                        const input = form.querySelector('input');
+                        const content = input.value.trim();
+                        if (!content) return;
+                        await fetch(`${API_BASE}/tasks/${task.id}/comments`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ content })
+                        });
+                        input.value = '';
+                        loadComments(task.id);
+                    });
+                }
+                // Обработчик изменения статуса (отправляем JSON в теле)
+                const statusSelect = document.getElementById(`statusSelect-${task.id}`);
+                if (statusSelect) {
+                    statusSelect.addEventListener('change', async () => {
+                        const newStatus = statusSelect.value;
+                        await fetch(`${API_BASE}/tasks/${task.id}/status`, {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ status: newStatus })
+                        });
+                        loadTasks(document.getElementById('statusFilter').value);
+                    });
+                }
+            });
+        }
+
+        // Рендер одной задачи (карточка)
+        function renderTask(task) {
+            const statusLabels = {
+                pending: '⏳ В ожидании',
+                in_progress: '🔄 В работе',
+                completed: '✅ Завершена'
+            };
+            const statusClasses = {
+                pending: 'bg-warning text-dark',
+                in_progress: 'bg-info text-white',
+                completed: 'bg-success text-white'
+            };
+            return `
+                <div class="card task-card">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <h5 class="card-title mb-1">${task.title}</h5>
+                                ${task.description ? `<p class="card-text text-muted small">${task.description}</p>` : ''}
+                                <span class="badge ${statusClasses[task.status]} status-badge">${statusLabels[task.status]}</span>
+                                ${task.completed_at ? `<span class="badge bg-secondary">Завершена: ${new Date(task.completed_at).toLocaleString()}</span>` : ''}
+                            </div>
+                            <div>
+                                <select id="statusSelect-${task.id}" class="form-select form-select-sm d-inline-block w-auto">
+                                    <option value="pending" ${task.status === 'pending' ? 'selected' : ''}>⏳ В ожидании</option>
+                                    <option value="in_progress" ${task.status === 'in_progress' ? 'selected' : ''}>🔄 В работе</option>
+                                    <option value="completed" ${task.status === 'completed' ? 'selected' : ''}>✅ Завершена</option>
+                                </select>
+                                <button class="btn btn-sm btn-outline-danger ms-2" onclick="deleteTask(${task.id})">🗑️</button>
+                            </div>
+                        </div>
+                        <div class="mt-2">
+                            <button id="toggleCommentsBtn-${task.id}" class="btn btn-sm btn-outline-secondary">📝 Показать комментарии</button>
+                        </div>
+                        <div class="collapse mt-2" id="collapseComments-${task.id}">
+                            <div id="commentsContainer-${task.id}">
+                                <div class="text-muted small">Комментарии загружаются...</div>
+                            </div>
+                            <form id="commentForm-${task.id}" class="comment-form d-flex gap-2">
+                                <input type="text" class="form-control form-control-sm" placeholder="Написать комментарий..." required>
+                                <button type="submit" class="btn btn-sm btn-primary">➕</button>
+                            </form>
+                        </div>
                     </div>
                 </div>
-            `).join('');
+            `;
+        }
+
+        // Загрузить комментарии для задачи
+        async function loadComments(taskId) {
+            const container = document.getElementById(`commentsContainer-${taskId}`);
+            try {
+                const resp = await fetch(`${API_BASE}/tasks/${taskId}/comments`);
+                const comments = await resp.json();
+                if (comments.length === 0) {
+                    container.innerHTML = '<div class="text-muted small">Нет комментариев.</div>';
+                } else {
+                    container.innerHTML = comments.map(c =>
+                        `<div class="comment d-flex justify-content-between">
+                            <span>${c.content}</span>
+                            <small class="text-muted">${new Date(c.created_at).toLocaleString()}</small>
+                            <button class="btn btn-sm btn-outline-danger" onclick="deleteComment(${c.id}, ${taskId})">×</button>
+                        </div>`
+                    ).join('');
+                }
+            } catch (e) {
+                container.innerHTML = '<div class="text-danger small">Ошибка загрузки комментариев.</div>';
+            }
+        }
+
+        // Удалить комментарий
+        async function deleteComment(commentId, taskId) {
+            if (!confirm('Удалить комментарий?')) return;
+            await fetch(`${API_BASE}/comments/${commentId}`, { method: 'DELETE' });
+            loadComments(taskId);
         }
 
         // Добавить задачу
         document.getElementById('addBtn').addEventListener('click', async () => {
             const title = document.getElementById('taskTitle').value.trim();
             const description = document.getElementById('taskDesc').value.trim();
+            const status = document.getElementById('taskStatus').value;
             if (!title) return alert('Название не может быть пустым');
 
             await fetch(`${API_BASE}/tasks`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ title, description, completed: false })
+                body: JSON.stringify({ title, description, status })
             });
             document.getElementById('taskTitle').value = '';
             document.getElementById('taskDesc').value = '';
-            await loadTasks();
+            document.getElementById('taskStatus').value = 'pending';
+            loadTasks(document.getElementById('statusFilter').value);
         });
 
         // Удалить задачу
         async function deleteTask(id) {
-            if (!confirm('Удалить задачу?')) return;
+            if (!confirm('Удалить задачу (все комментарии тоже будут удалены)?')) return;
             await fetch(`${API_BASE}/tasks/${id}`, { method: 'DELETE' });
-            await loadTasks();
+            loadTasks(document.getElementById('statusFilter').value);
         }
+
+        // Фильтр
+        document.getElementById('filterBtn').addEventListener('click', () => {
+            const status = document.getElementById('statusFilter').value;
+            loadTasks(status);
+        });
+        document.getElementById('resetFilterBtn').addEventListener('click', () => {
+            document.getElementById('statusFilter').value = '';
+            loadTasks('');
+        });
 
         // Получить поды
         document.getElementById('getPodsBtn').addEventListener('click', async () => {
@@ -117,7 +263,7 @@
         });
 
         // Инициализация
-        loadTasks();
+        loadTasks('');
     </script>
 </body>
 </html>
