@@ -1,11 +1,10 @@
-from fastapi import FastAPI, Request, HTTPException, BackgroundTasks, Query
+from fastapi import FastAPI, Request, HTTPException, Depends, Query
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
-from .models import TaskCreate, Task, TaskStatus, CommentCreate, Comment, StatusUpdate
-from .crud import (
-    get_all_tasks, get_task, create_task, update_task, delete_task,
-    update_task_status, get_comments_for_task, create_comment, delete_comment
-)
+from sqlalchemy.ext.asyncio import AsyncSession
+from contextlib import asynccontextmanager
+from .database import get_db, engine, Base
+from . import schemas, crud
 from .k8s_client import get_pods
 import os
 import logging
@@ -14,7 +13,17 @@ from typing import Optional, List
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="Task Manager with K8s", version="2.0.0")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup: создаём таблицы
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    logger.info("Database tables created (if not exist)")
+    yield
+    # Shutdown
+    await engine.dispose()
+
+app = FastAPI(title="Task Manager with K8s", version="3.0.0", lifespan=lifespan)
 
 templates = Jinja2Templates(directory="app/templates")
 
@@ -22,81 +31,76 @@ templates = Jinja2Templates(directory="app/templates")
 
 @app.get("/live")
 async def liveness():
-    """Проверка, что приложение живо"""
     return {"status": "alive"}
 
 @app.get("/ready")
-async def readiness():
-    """Проверка готовности (пока всегда OK)"""
-    return {"status": "ready"}
+async def readiness(db: AsyncSession = Depends(get_db)):
+    # Проверяем подключение к БД
+    try:
+        await db.execute("SELECT 1")
+        return {"status": "ready"}
+    except Exception:
+        raise HTTPException(status_code=503, detail="Database unavailable")
 
-# ==================== API Задачи ====================
+# ==================== API Tasks ====================
 
-@app.get("/api/tasks", response_model=List[Task])
+@app.get("/api/tasks", response_model=List[schemas.Task])
 async def list_tasks(
-    status: Optional[TaskStatus] = Query(None, description="Фильтр по статусу")
+    status: Optional[schemas.TaskStatus] = Query(None),
+    db: AsyncSession = Depends(get_db)
 ):
-    """Получить все задачи с возможной фильтрацией по статусу"""
-    return get_all_tasks(status)
+    return await crud.get_all_tasks(db, status)
 
-@app.post("/api/tasks", response_model=Task, status_code=201)
-async def create_new_task(task: TaskCreate):
-    """Создать новую задачу"""
-    return create_task(task)
+@app.post("/api/tasks", response_model=schemas.Task, status_code=201)
+async def create_new_task(task: schemas.TaskCreate, db: AsyncSession = Depends(get_db)):
+    return await crud.create_task(db, task)
 
-@app.get("/api/tasks/{task_id}", response_model=Task)
-async def get_task_by_id(task_id: int):
-    """Получить задачу по ID"""
-    task = get_task(task_id)
+@app.get("/api/tasks/{task_id}", response_model=schemas.Task)
+async def get_task_by_id(task_id: int, db: AsyncSession = Depends(get_db)):
+    task = await crud.get_task(db, task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
     return task
 
-@app.put("/api/tasks/{task_id}", response_model=Task)
-async def update_existing_task(task_id: int, task: TaskCreate):
-    """Полностью обновить задачу"""
-    updated = update_task(task_id, task)
+@app.put("/api/tasks/{task_id}", response_model=schemas.Task)
+async def update_existing_task(task_id: int, task: schemas.TaskCreate, db: AsyncSession = Depends(get_db)):
+    updated = await crud.update_task(db, task_id, task)
     if not updated:
         raise HTTPException(status_code=404, detail="Task not found")
     return updated
 
-@app.patch("/api/tasks/{task_id}/status", response_model=Task)
-async def change_task_status(task_id: int, update: StatusUpdate):
-    """Изменить статус задачи (тело: {"status": "completed"})"""
-    updated = update_task_status(task_id, update.status)
+@app.patch("/api/tasks/{task_id}/status", response_model=schemas.Task)
+async def change_task_status(task_id: int, update: schemas.StatusUpdate, db: AsyncSession = Depends(get_db)):
+    updated = await crud.update_task_status(db, task_id, update.status)
     if not updated:
         raise HTTPException(status_code=404, detail="Task not found")
     return updated
 
 @app.delete("/api/tasks/{task_id}", status_code=204)
-async def delete_existing_task(task_id: int):
-    """Удалить задачу (вместе с комментариями)"""
-    deleted = delete_task(task_id)
+async def delete_existing_task(task_id: int, db: AsyncSession = Depends(get_db)):
+    deleted = await crud.delete_task(db, task_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Task not found")
     return {"ok": True}
 
-# ==================== API Комментарии ====================
+# ==================== API Comments ====================
 
-@app.get("/api/tasks/{task_id}/comments", response_model=List[Comment])
-async def get_comments(task_id: int):
-    """Получить все комментарии к задаче"""
-    if not get_task(task_id):
+@app.get("/api/tasks/{task_id}/comments", response_model=List[schemas.Comment])
+async def get_comments(task_id: int, db: AsyncSession = Depends(get_db)):
+    if not await crud.get_task(db, task_id):
         raise HTTPException(status_code=404, detail="Task not found")
-    return get_comments_for_task(task_id)
+    return await crud.get_comments_for_task(db, task_id)
 
-@app.post("/api/tasks/{task_id}/comments", response_model=Comment, status_code=201)
-async def add_comment(task_id: int, comment: CommentCreate):
-    """Добавить комментарий к задаче"""
-    new_comment = create_comment(task_id, comment)
+@app.post("/api/tasks/{task_id}/comments", response_model=schemas.Comment, status_code=201)
+async def add_comment(task_id: int, comment: schemas.CommentCreate, db: AsyncSession = Depends(get_db)):
+    new_comment = await crud.create_comment(db, task_id, comment)
     if not new_comment:
         raise HTTPException(status_code=404, detail="Task not found")
     return new_comment
 
 @app.delete("/api/comments/{comment_id}", status_code=204)
-async def delete_comment_by_id(comment_id: int):
-    """Удалить комментарий"""
-    deleted = delete_comment(comment_id)
+async def delete_comment_by_id(comment_id: int, db: AsyncSession = Depends(get_db)):
+    deleted = await crud.delete_comment(db, comment_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Comment not found")
     return {"ok": True}
@@ -105,20 +109,16 @@ async def delete_comment_by_id(comment_id: int):
 
 @app.get("/api/k8s/pods")
 async def k8s_pods(namespace: str = "default"):
-    """Получить список подов в указанном неймспейсе"""
     result = get_pods(namespace)
     if isinstance(result, dict) and "error" in result:
         raise HTTPException(status_code=500, detail=result["error"])
     return {"pods": result}
 
-# ==================== Фронтенд ====================
+# ==================== Frontend ====================
 
 @app.get("/", response_class=HTMLResponse)
 async def frontend(request: Request):
-    """Главная страница с интерфейсом"""
     return templates.TemplateResponse("index.html", {"request": request})
-
-# ==================== Для локального запуска ====================
 
 if __name__ == "__main__":
     import uvicorn

@@ -66,3 +66,7 @@ secrets.local.yaml
 # Our pet project specific
 k8s/secret-*.yaml   # секреты не храним в репозитории
 *.local.yaml
+
+# GitLab runtime
+infrastructure/gitlab/data/
+infrastructure/gitlab/logs/
