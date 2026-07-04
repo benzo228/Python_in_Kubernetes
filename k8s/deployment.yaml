@@ -18,7 +18,7 @@ spec:
       serviceAccountName: task-manager-sa   # привязываем сервис-аккаунт с правами
       containers:
       - name: app
-        image: task-manager:latest
+        image: task-manager:v6
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8000
@@ -32,15 +32,17 @@ spec:
           limits:
             memory: "256Mi"
             cpu: "200m"
-        livenessProbe:
-          httpGet:
-            path: /health
-            port: 8000
-          initialDelaySeconds: 10
-          periodSeconds: 10
-        readinessProbe:
-          httpGet:
-            path: /health
-            port: 8000
-          initialDelaySeconds: 5
-          periodSeconds: 5
+#        livenessProbe:
+#          httpGet:
+#            path: /live
+#            port: 8000
+#          initialDelaySeconds: 30
+#          periodSeconds: 30
+#          timeoutSeconds: 5
+#          failureThreshold: 3
+#        readinessProbe:
+#          httpGet:
+#            path: /ready
+#            port: 8000
+#          timeoutSeconds: 3
+#         failureThreshold: 2

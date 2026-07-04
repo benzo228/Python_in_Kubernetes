@@ -7,8 +7,7 @@ metadata:
     nginx.ingress.kubernetes.io/rewrite-target: /
 spec:
   rules:
-  - host: task-manager.local   # локальный домен, можно прописать в /etc/hosts
-    http:
+  - http:
       paths:
       - path: /
         pathType: Prefix
@@ -17,3 +16,5 @@ spec:
             name: task-manager-service
             port:
               number: 80
+
+#kubectl port-forward -n ingress-nginx service/ingress-nginx-controller 8080:80
