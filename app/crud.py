@@ -1,105 +1,83 @@
+from sqlalchemy import select, delete
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 from datetime import datetime
-from typing import List, Optional
-from .models import Task, TaskCreate, TaskStatus, Comment, CommentCreate
+from typing import Optional, List
+from . import models, schemas
 
-# Хранилище
-tasks_db = {}
-task_id_counter = 1
-comments_db = {}
-comment_id_counter = 1
+# ==================== Tasks ====================
 
-# ==================== Задачи ====================
-
-def get_all_tasks(status: Optional[TaskStatus] = None) -> List[Task]:
-    tasks = list(tasks_db.values())
+async def get_all_tasks(db: AsyncSession, status: Optional[str] = None) -> List[models.Task]:
+    query = select(models.Task).options(selectinload(models.Task.comments))
     if status:
-        tasks = [t for t in tasks if t.status == status]
-    return tasks
+        query = query.where(models.Task.status == status)
+    result = await db.execute(query)
+    return result.scalars().all()
 
-def get_task(task_id: int) -> Optional[Task]:
-    return tasks_db.get(task_id)
+async def get_task(db: AsyncSession, task_id: int) -> Optional[models.Task]:
+    result = await db.execute(select(models.Task).where(models.Task.id == task_id))
+    return result.scalar_one_or_none()
 
-def create_task(task_data: TaskCreate) -> Task:
-    global task_id_counter
-    task = Task(
-        id=task_id_counter,
-        title=task_data.title,
-        description=task_data.description,
-        status=task_data.status,
-        created_at=datetime.now(),
-        updated_at=None,
-        completed_at=None,
-        comments=[]
-    )
-    tasks_db[task_id_counter] = task
-    task_id_counter += 1
-    return task
+async def create_task(db: AsyncSession, task_data: schemas.TaskCreate) -> models.Task:
+    db_task = models.Task(**task_data.model_dump())
+    db.add(db_task)
+    await db.commit()
+    await db.refresh(db_task)
+    return db_task
 
-def update_task(task_id: int, task_data: TaskCreate) -> Optional[Task]:
-    task = tasks_db.get(task_id)
+async def update_task(db: AsyncSession, task_id: int, task_data: schemas.TaskCreate) -> Optional[models.Task]:
+    task = await get_task(db, task_id)
     if not task:
         return None
     task.title = task_data.title
     task.description = task_data.description
     task.status = task_data.status
-    task.updated_at = datetime.now()
-    if task.status == TaskStatus.completed and task.completed_at is None:
-        task.completed_at = datetime.now()
-    elif task.status != TaskStatus.completed:
-        task.completed_at = None
+    task.updated_at = datetime.utcnow()
+    if task.status == schemas.TaskStatus.completed and task.completed_at is None:
+        task.completed_at = datetime.utcnow()
+    await db.commit()
+    await db.refresh(task)
     return task
 
-def update_task_status(task_id: int, status: TaskStatus) -> Optional[Task]:
-    task = tasks_db.get(task_id)
+async def update_task_status(db: AsyncSession, task_id: int, status: schemas.TaskStatus) -> Optional[models.Task]:
+    task = await get_task(db, task_id)
     if not task:
         return None
     task.status = status
-    task.updated_at = datetime.now()
-    if status == TaskStatus.completed and task.completed_at is None:
-        task.completed_at = datetime.now()
-    elif status != TaskStatus.completed:
-        task.completed_at = None
+    task.updated_at = datetime.utcnow()
+    if status == schemas.TaskStatus.completed and task.completed_at is None:
+        task.completed_at = datetime.utcnow()
+    await db.commit()
+    await db.refresh(task)
     return task
 
-def delete_task(task_id: int) -> bool:
-    if task_id in tasks_db:
-        # Удаляем все комментарии к задаче
-        for cid in list(comments_db.keys()):
-            if comments_db[cid].task_id == task_id:
-                del comments_db[cid]
-        del tasks_db[task_id]
-        return True
-    return False
+async def delete_task(db: AsyncSession, task_id: int) -> bool:
+    task = await get_task(db, task_id)
+    if not task:
+        return False
+    await db.delete(task)
+    await db.commit()
+    return True
 
-# ==================== Комментарии ====================
+# ==================== Comments ====================
 
-def get_comments_for_task(task_id: int) -> List[Comment]:
-    return [c for c in comments_db.values() if c.task_id == task_id]
+async def get_comments_for_task(db: AsyncSession, task_id: int) -> List[models.Comment]:
+    result = await db.execute(select(models.Comment).where(models.Comment.task_id == task_id))
+    return result.scalars().all()
 
-def create_comment(task_id: int, comment_data: CommentCreate) -> Optional[Comment]:
-    if task_id not in tasks_db:
+async def create_comment(db: AsyncSession, task_id: int, comment_data: schemas.CommentCreate) -> Optional[models.Comment]:
+    task = await get_task(db, task_id)
+    if not task:
         return None
-    global comment_id_counter
-    comment = Comment(
-        id=comment_id_counter,
-        task_id=task_id,
-        content=comment_data.content,
-        created_at=datetime.now()
-    )
-    comments_db[comment_id_counter] = comment
-    comment_id_counter += 1
-    # Добавляем комментарий в задачу (для удобства)
-    task = tasks_db[task_id]
-    task.comments.append(comment)
-    return comment
+    db_comment = models.Comment(task_id=task_id, content=comment_data.content)
+    db.add(db_comment)
+    await db.commit()
+    await db.refresh(db_comment)
+    return db_comment
 
-def delete_comment(comment_id: int) -> bool:
-    if comment_id in comments_db:
-        task_id = comments_db[comment_id].task_id
-        del comments_db[comment_id]
-        # Удаляем из задачи
-        task = tasks_db.get(task_id)
-        if task:
-            task.comments = [c for c in task.comments if c.id != comment_id]
-        return True
-    return False
+async def delete_comment(db: AsyncSession, comment_id: int) -> bool:
+    result = await db.execute(delete(models.Comment).where(models.Comment.id == comment_id))
+    if result.rowcount == 0:
+        return False
+    await db.commit()
+    return True

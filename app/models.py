@@ -1,44 +1,27 @@
-from pydantic import BaseModel
-from typing import Optional, List
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Text
+from sqlalchemy.orm import relationship
 from datetime import datetime
-from enum import Enum
+from .database import Base
 
-class TaskStatus(str, Enum):
-    pending = "pending"
-    in_progress = "in_progress"
-    completed = "completed"
+class Task(Base):
+    __tablename__ = "tasks"
 
-class CommentBase(BaseModel):
-    content: str
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String, nullable=False)
+    description = Column(String, nullable=True)
+    status = Column(String, default="pending")  # pending, in_progress, completed
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=True)
+    completed_at = Column(DateTime, nullable=True)
 
-class CommentCreate(CommentBase):
-    pass
+    comments = relationship("Comment", back_populates="task", cascade="all, delete-orphan")
 
-class Comment(CommentBase):
-    id: int
-    task_id: int
-    created_at: datetime
+class Comment(Base):
+    __tablename__ = "comments"
 
-    class Config:
-        from_attributes = True
+    id = Column(Integer, primary_key=True, index=True)
+    task_id = Column(Integer, ForeignKey("tasks.id", ondelete="CASCADE"))
+    content = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
 
-class TaskBase(BaseModel):
-    title: str
-    description: Optional[str] = None
-    status: TaskStatus = TaskStatus.pending
-
-class TaskCreate(TaskBase):
-    pass
-
-class Task(TaskBase):
-    id: int
-    created_at: datetime
-    updated_at: Optional[datetime] = None
-    completed_at: Optional[datetime] = None
-    comments: List[Comment] = []
-
-    class Config:
-        from_attributes = True
-
-class StatusUpdate(BaseModel):
-    status: TaskStatus
+    task = relationship("Task", back_populates="comments")
