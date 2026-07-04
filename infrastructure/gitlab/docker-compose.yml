@@ -1,0 +1,32 @@
+services:
+  gitlab:
+    image: gitlab/gitlab-ce:17.4.0-ce.0
+    container_name: gitlab
+    hostname: gitlab.local
+    restart: unless-stopped
+    ports:
+      - "8929:8929"
+      - "2224:22"
+    volumes:
+      - ./config/gitlab.rb:/etc/gitlab/gitlab.rb:ro
+      - ./data:/var/opt/gitlab
+      - ./logs:/var/log/gitlab
+    environment:
+      GITLAB_OMNIBUS_CONFIG: |
+        external_url 'http://localhost:8929'
+        gitlab_rails['gitlab_shell_ssh_port'] = 2224
+        gitlab_rails['gitlab_shell_ssh_port'] = 2224
+        gitlab_rails['gitlab_ssh_host'] = 'localhost'
+
+    shm_size: '256m'
+    deploy:
+      resources:
+        limits:
+          memory: 4g
+          cpus: '4'
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8929/-/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
