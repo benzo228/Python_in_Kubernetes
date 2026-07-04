@@ -6,6 +6,7 @@ services:
     restart: unless-stopped
     ports:
       - "8929:8929"
+      - "5050:5050"
       - "2224:22"
     volumes:
       - ./config/gitlab.rb:/etc/gitlab/gitlab.rb:ro
@@ -13,8 +14,10 @@ services:
       - ./logs:/var/log/gitlab
     environment:
       GITLAB_OMNIBUS_CONFIG: |
-        external_url 'http://localhost:8929'
-        gitlab_rails['gitlab_shell_ssh_port'] = 2224
+        external_url 'http://192.168.0.200:8929'
+        registry_external_url 'http://192.168.0.200:5050'
+        gitlab_rails['registry_enabled'] = true
+        registry['enable'] = true
         gitlab_rails['gitlab_shell_ssh_port'] = 2224
         gitlab_rails['gitlab_ssh_host'] = 'localhost'
 
@@ -25,8 +28,7 @@ services:
           memory: 4g
           cpus: '4'
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8929/-/health"]
+      test: ["CMD", "curl", "-f", "http://192.168.0.200:8929/-/health"]
       interval: 30s
       timeout: 10s
       retries: 5
-
