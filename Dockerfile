@@ -17,6 +17,10 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 
 COPY app/ ./app/
 
+RUN addgroup --system --gid 1001 appuser && \
+    adduser --system --uid 1001 --gid 1001 appuser
+USER appuser
+
 EXPOSE 8000
 
 # Запускаем uvicorn (уже установлен через uv)
