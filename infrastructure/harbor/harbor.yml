@@ -1,0 +1,16 @@
+hostname: 192.168.0.200
+http:
+  port: 30002
+harbor_admin_password: Harbor12345
+database:
+  password: root123
+data_volume: /data/harbor
+trivy:
+  enabled: true
+jobservice:
+  max_job_workers: 3
+  job_loggers:
+    - file
+    - stdout
+log:
+  level: info
