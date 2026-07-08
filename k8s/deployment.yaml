@@ -18,7 +18,7 @@ spec:
       serviceAccountName: task-manager-sa
       containers:
       - name: app
-        image: task-manager:v8
+        image: placeholder-task-manager:latest # заглушка, чтобы версии образов менялись
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8000

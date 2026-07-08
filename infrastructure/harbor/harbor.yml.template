@@ -1,4 +1,4 @@
-hostname: 192.168.0.200
+hostname: ${HARBOR_HOST}
 http:
   port: 30002
 harbor_admin_password: Harbor12345

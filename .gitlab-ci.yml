@@ -1,6 +1,11 @@
 stages:
   - build
+  - lint
   - deploy
+
+variables:
+  HARBOR_HOST: "192.168.0.200:30002"
+  APP_URL: "http://192.168.0.200"
 
 build:
   stage: build
@@ -14,17 +19,39 @@ build:
     - /kaniko/executor
       --context "${CI_PROJECT_DIR}"
       --dockerfile "${CI_PROJECT_DIR}/Dockerfile"
+      --cache=true
+      --cache-repo="${CI_REGISTRY_IMAGE}/cache"
       --destination "${CI_REGISTRY_IMAGE}:${CI_COMMIT_SHORT_SHA}"
       --destination "${CI_REGISTRY_IMAGE}:latest"
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
-    
-deploy: 
+
+lint:
+  stage: lint
+  image: python:3.12-slim
+  before_script:
+    - pip install --no-cache-dir uv
+    - uv pip install --system --no-cache ruff
+  script:
+    - ruff check app/
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+
+deploy:
   stage: deploy
   image: bitnami/kubectl:latest
   script:
-    - kubectl set image deployment/task-manager
-      app=${CI_REGISTRY_IMAGE}:${CI_COMMIT_SHORT_SHA}
-      --namespace=pet-project
+    - export CI_REGISTRY_IMAGE="${CI_REGISTRY_IMAGE:-${HARBOR_HOST}/pet-project/task-manager}"
+    - envsubst < k8s/deployment.yaml | kubectl apply -f -
+    - kubectl rollout status deployment/task-manager --namespace=pet-project --timeout=5m
+    - kubectl annotate deployment/task-manager kubernetes.io/change-cause="Deploy ${CI_COMMIT_SHORT_SHA}" --namespace=pet-project --overwrite
+  after_script:
+    - |
+      if [ "$CI_JOB_STATUS" == "failed" ]; then
+        kubectl rollout undo deployment/task-manager --namespace=pet-project
+      fi
+  environment:
+    name: production
+    url: ${APP_URL}
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
