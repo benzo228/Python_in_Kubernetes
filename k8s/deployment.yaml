@@ -16,6 +16,8 @@ spec:
         app: task-manager
     spec:
       serviceAccountName: task-manager-sa
+      imagePullSecrets:
+      - name: harbor-credentials
       containers:
       - name: app
         image: placeholder-task-manager:latest # заглушка, чтобы версии образов менялись
