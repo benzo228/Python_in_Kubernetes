@@ -23,3 +23,15 @@ my-pet-project/
 ├── .dockerignore                    # Исключает лишние файлы из сборки
 ├── .gitignore                       # Игнорирует временные файлы, __pycache__, .env и т.д.
 └── README.md                        # Инструкция по запуску (локально и в K8s)
+
+
+## Развёртывание Harbor
+
+```bash
+cd infrastructure/harbor
+mkdir -p data config
+curl -L https://raw.githubusercontent.com/goharbor/harbor/v2.12.0/contrib/registry/config.yml -o config/registry.yml
+docker compose up -d
+
+Harbor будет доступен на порту 30002.
+Логин: admin, пароль: Harbor12345

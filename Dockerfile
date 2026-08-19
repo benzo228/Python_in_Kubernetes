@@ -2,25 +2,24 @@ FROM python:3.12-slim AS builder
 
 WORKDIR /app
 
-# Устанавливаем uv
 RUN pip install --no-cache-dir uv
 
-# Копируем зависимости
 COPY requirements.txt .
 
-# Устанавливаем зависимости через uv (это быстрее и кеширует)
 RUN uv pip install --system --no-cache -r requirements.txt
 
-# Сборка финального образа
 FROM python:3.12-slim
 
 WORKDIR /app
 
-# Копируем установленные зависимости из первого этапа
 COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
 
 COPY app/ ./app/
+
+RUN addgroup --system --gid 1001 appuser && \
+    adduser --system --uid 1001 --gid 1001 appuser
+USER appuser
 
 EXPOSE 8000
 
