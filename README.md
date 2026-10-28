@@ -1,5 +1,4 @@
 # Python_in_Kubernetes
-<<<<<<< HEAD
 
 my-pet-project/
 ├── app/
@@ -36,5 +35,3 @@ docker compose up -d
 
 Harbor будет доступен на порту 30002.
 Логин: admin, пароль: Harbor12345
-=======
->>>>>>> 22c642f (first commit)

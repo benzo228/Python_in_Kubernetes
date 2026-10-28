@@ -1,20 +1,21 @@
-from sqlalchemy import select, delete
+from datetime import UTC, datetime
+
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-from datetime import datetime
-from typing import Optional, List
+
 from . import models, schemas
 
 # ==================== Tasks ====================
 
-async def get_all_tasks(db: AsyncSession, status: Optional[str] = None) -> List[models.Task]:
+async def get_all_tasks(db: AsyncSession, status: str | None = None) -> list[models.Task]:
     query = select(models.Task).options(selectinload(models.Task.comments))
     if status:
         query = query.where(models.Task.status == status)
     result = await db.execute(query)
     return result.scalars().all()
 
-async def get_task(db: AsyncSession, task_id: int) -> Optional[models.Task]:
+async def get_task(db: AsyncSession, task_id: int) -> models.Task | None:
     result = await db.execute(select(models.Task).where(models.Task.id == task_id))
     return result.scalar_one_or_none()
 
@@ -25,28 +26,28 @@ async def create_task(db: AsyncSession, task_data: schemas.TaskCreate) -> models
     await db.refresh(db_task)
     return db_task
 
-async def update_task(db: AsyncSession, task_id: int, task_data: schemas.TaskCreate) -> Optional[models.Task]:
+async def update_task(db: AsyncSession, task_id: int, task_data: schemas.TaskCreate) -> models.Task | None:
     task = await get_task(db, task_id)
     if not task:
         return None
     task.title = task_data.title
     task.description = task_data.description
     task.status = task_data.status
-    task.updated_at = datetime.utcnow()
+    task.updated_at = datetime.now(UTC)
     if task.status == schemas.TaskStatus.completed and task.completed_at is None:
-        task.completed_at = datetime.utcnow()
+        task.completed_at = datetime.now(UTC)
     await db.commit()
     await db.refresh(task)
     return task
 
-async def update_task_status(db: AsyncSession, task_id: int, status: schemas.TaskStatus) -> Optional[models.Task]:
+async def update_task_status(db: AsyncSession, task_id: int, status: schemas.TaskStatus) -> models.Task | None:
     task = await get_task(db, task_id)
     if not task:
         return None
     task.status = status
-    task.updated_at = datetime.utcnow()
+    task.updated_at = datetime.now(UTC)
     if status == schemas.TaskStatus.completed and task.completed_at is None:
-        task.completed_at = datetime.utcnow()
+        task.completed_at = datetime.now(UTC)
     await db.commit()
     await db.refresh(task)
     return task
@@ -61,11 +62,11 @@ async def delete_task(db: AsyncSession, task_id: int) -> bool:
 
 # ==================== Comments ====================
 
-async def get_comments_for_task(db: AsyncSession, task_id: int) -> List[models.Comment]:
+async def get_comments_for_task(db: AsyncSession, task_id: int) -> list[models.Comment]:
     result = await db.execute(select(models.Comment).where(models.Comment.task_id == task_id))
     return result.scalars().all()
 
-async def create_comment(db: AsyncSession, task_id: int, comment_data: schemas.CommentCreate) -> Optional[models.Comment]:
+async def create_comment(db: AsyncSession, task_id: int, comment_data: schemas.CommentCreate) -> models.Comment | None:
     task = await get_task(db, task_id)
     if not task:
         return None

@@ -1,7 +1,8 @@
-from pydantic import BaseModel
-from typing import Optional, List
 from datetime import datetime
 from enum import Enum
+
+from pydantic import BaseModel
+
 
 class TaskStatus(str, Enum):
     pending = "pending"
@@ -24,7 +25,7 @@ class Comment(CommentBase):
 
 class TaskBase(BaseModel):
     title: str
-    description: Optional[str] = None
+    description: str | None = None
     status: TaskStatus = TaskStatus.pending
 
 class TaskCreate(TaskBase):
@@ -33,9 +34,9 @@ class TaskCreate(TaskBase):
 class Task(TaskBase):
     id: int
     created_at: datetime
-    updated_at: Optional[datetime] = None
-    completed_at: Optional[datetime] = None
-    comments: List[Comment] = []
+    updated_at: datetime | None = None
+    completed_at: datetime | None = None
+    comments: list[Comment] = []
 
     class Config:
         from_attributes = True

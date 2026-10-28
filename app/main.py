@@ -1,14 +1,20 @@
-from fastapi import FastAPI, Request, HTTPException, Depends, Query
+import logging
+import os
+from contextlib import asynccontextmanager
+from typing import Annotated
+
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
-from contextlib import asynccontextmanager
-from .database import get_db, engine, Base
-from . import schemas, crud
+
+from . import crud, schemas
+from .database import Base, engine, get_db
 from .k8s_client import get_pods
-import os
-import logging
-from typing import Optional, List
+
+# Создаем тип для аннотации зависимости
+DbSession = Annotated[AsyncSession, Depends(get_db)]
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -34,50 +40,50 @@ async def liveness():
     return {"status": "alive"}
 
 @app.get("/ready")
-async def readiness(db: AsyncSession = Depends(get_db)):
+async def readiness(db: DbSession):
     # Проверяем подключение к БД
     try:
         await db.execute("SELECT 1")
         return {"status": "ready"}
-    except Exception:
+    except SQLAlchemyError:
         raise HTTPException(status_code=503, detail="Database unavailable")
 
 # ==================== API Tasks ====================
 
-@app.get("/api/tasks", response_model=List[schemas.Task])
+@app.get("/api/tasks", response_model=list[schemas.Task])
 async def list_tasks(
-    status: Optional[schemas.TaskStatus] = Query(None),
-    db: AsyncSession = Depends(get_db)
+    status: Annotated[schemas.TaskStatus | None, Query()] = None,
+    db: DbSession = None
 ):
     return await crud.get_all_tasks(db, status)
 
 @app.post("/api/tasks", response_model=schemas.Task, status_code=201)
-async def create_new_task(task: schemas.TaskCreate, db: AsyncSession = Depends(get_db)):
+async def create_new_task(task: schemas.TaskCreate, db: DbSession):
     return await crud.create_task(db, task)
 
 @app.get("/api/tasks/{task_id}", response_model=schemas.Task)
-async def get_task_by_id(task_id: int, db: AsyncSession = Depends(get_db)):
+async def get_task_by_id(task_id: int, db: DbSession):
     task = await crud.get_task(db, task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
     return task
 
 @app.put("/api/tasks/{task_id}", response_model=schemas.Task)
-async def update_existing_task(task_id: int, task: schemas.TaskCreate, db: AsyncSession = Depends(get_db)):
+async def update_existing_task(task_id: int, task: schemas.TaskCreate, db: DbSession):
     updated = await crud.update_task(db, task_id, task)
     if not updated:
         raise HTTPException(status_code=404, detail="Task not found")
     return updated
 
 @app.patch("/api/tasks/{task_id}/status", response_model=schemas.Task)
-async def change_task_status(task_id: int, update: schemas.StatusUpdate, db: AsyncSession = Depends(get_db)):
+async def change_task_status(task_id: int, update: schemas.StatusUpdate, db: DbSession):
     updated = await crud.update_task_status(db, task_id, update.status)
     if not updated:
         raise HTTPException(status_code=404, detail="Task not found")
     return updated
 
 @app.delete("/api/tasks/{task_id}", status_code=204)
-async def delete_existing_task(task_id: int, db: AsyncSession = Depends(get_db)):
+async def delete_existing_task(task_id: int, db: DbSession):
     deleted = await crud.delete_task(db, task_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Task not found")
@@ -85,21 +91,21 @@ async def delete_existing_task(task_id: int, db: AsyncSession = Depends(get_db))
 
 # ==================== API Comments ====================
 
-@app.get("/api/tasks/{task_id}/comments", response_model=List[schemas.Comment])
-async def get_comments(task_id: int, db: AsyncSession = Depends(get_db)):
+@app.get("/api/tasks/{task_id}/comments", response_model=list[schemas.Comment])
+async def get_comments(task_id: int, db: DbSession):
     if not await crud.get_task(db, task_id):
         raise HTTPException(status_code=404, detail="Task not found")
     return await crud.get_comments_for_task(db, task_id)
 
 @app.post("/api/tasks/{task_id}/comments", response_model=schemas.Comment, status_code=201)
-async def add_comment(task_id: int, comment: schemas.CommentCreate, db: AsyncSession = Depends(get_db)):
+async def add_comment(task_id: int, comment: schemas.CommentCreate, db: DbSession):
     new_comment = await crud.create_comment(db, task_id, comment)
     if not new_comment:
         raise HTTPException(status_code=404, detail="Task not found")
     return new_comment
 
 @app.delete("/api/comments/{comment_id}", status_code=204)
-async def delete_comment_by_id(comment_id: int, db: AsyncSession = Depends(get_db)):
+async def delete_comment_by_id(comment_id: int, db: DbSession):
     deleted = await crud.delete_comment(db, comment_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Comment not found")
