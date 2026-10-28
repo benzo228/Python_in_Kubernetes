@@ -4,3 +4,4 @@
 4) сделать ci/cd pipeline
 5) развернуть argo cd
 6) перевести в helm charts манифесты 
+123
