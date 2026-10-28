@@ -17,3 +17,6 @@ __pycache__/
 # IDE
 .vscode/
 .idea/
+
+# Локальные скрипты синхронизации
+sync_to_github.ps1
