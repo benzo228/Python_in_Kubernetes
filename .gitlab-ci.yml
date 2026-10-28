@@ -1,0 +1,48 @@
+# Определяем этапы пайплайна
+stages:
+  - build
+  - deploy
+
+# Переменные, которые будут использоваться во всех job'ах
+variables:
+  # Уникальный тег для образа, основанный на хеше коммита
+  IMAGE_TAG: $CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA
+
+# --- ЭТАП 1: СБОРКА ОБРАЗА (с помощью Kaniko) ---
+build-image:
+  stage: build
+  # Используем образ Kaniko. Он умеет собирать Docker-образы без Docker-демона.
+  image:
+    name: gcr.io/kaniko-project/executor:debug
+    entrypoint: [""]
+  tags:
+    - kubernetes  # Указываем, что job должен выполняться на нашем раннере
+  script:
+    # 1. Создаем файл конфигурации для аутентификации в реестре GitLab
+    - mkdir -p /kaniko/.docker
+    - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" > /kaniko/.docker/config.json
+    # 2. Запускаем сборку и пуш образа
+    - /kaniko/executor
+      --context "$CI_PROJECT_DIR"
+      --dockerfile "$CI_PROJECT_DIR/Dockerfile"
+      --destination "$IMAGE_TAG"
+      --destination "$CI_REGISTRY_IMAGE:latest"
+
+# --- ЭТАП 2: ДЕПЛОЙ В KUBERNETES ---
+deploy-to-k8s:
+  stage: deploy
+  # Используем легкий образ с kubectl
+  image:
+    name: bitnami/kubectl:latest
+    entrypoint: [""]
+  tags:
+    - kubernetes
+  script:
+    # 1. Настраиваем доступ к кластеру (создаем kubeconfig из переменных)
+    - kubectl config set-cluster minikube --server="$KUBE_SERVER" --insecure-skip-tls-verify=true
+    - kubectl config set-credentials gitlab --token="$KUBE_TOKEN"
+    - kubectl config set-context default --cluster=minikube --user=gitlab
+    - kubectl config use-context default
+    # 2. Обновляем образ в деплойменте и ждем завершения
+    - kubectl set image deployment/task-manager app="$IMAGE_TAG" -n pet-project
+    - kubectl rollout status deployment/task-manager -n pet-project

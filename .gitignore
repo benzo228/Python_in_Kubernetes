@@ -1,0 +1,19 @@
+# Секреты
+.env
+runner-values.yaml
+
+# Данные инфраструктуры (не пушим в репозиторий)
+infrastructure/harbor/harbor_helm/
+infrastructure/harbor/*.tgz
+infrastructure/gitlab/data/
+infrastructure/gitlab/logs/
+infrastructure/gitlab/config/gitlab.rb  # если там есть пароли
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# IDE
+.vscode/
+.idea/
