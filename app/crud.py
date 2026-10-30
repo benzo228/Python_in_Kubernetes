@@ -8,26 +8,29 @@ from . import models, schemas
 
 # ==================== Tasks ====================
 
-async def get_all_tasks(db: AsyncSession, status: str | None = None) -> list[models.Task]:
-    query = select(models.Task).options(selectinload(models.Task.comments))
+async def get_all_tasks(db: AsyncSession, owner_id: int, status: str | None = None) -> list[models.Task]:
+    query = select(models.Task).where(models.Task.owner_id == owner_id).options(selectinload(models.Task.comments))
     if status:
         query = query.where(models.Task.status == status)
     result = await db.execute(query)
     return result.scalars().all()
 
-async def get_task(db: AsyncSession, task_id: int) -> models.Task | None:
-    result = await db.execute(select(models.Task).where(models.Task.id == task_id))
+async def get_task(db: AsyncSession, task_id: int, owner_id: int | None = None) -> models.Task | None:
+    query = select(models.Task).where(models.Task.id == task_id)
+    if owner_id is not None:
+        query = query.where(models.Task.owner_id == owner_id)
+    result = await db.execute(query)
     return result.scalar_one_or_none()
 
-async def create_task(db: AsyncSession, task_data: schemas.TaskCreate) -> models.Task:
-    db_task = models.Task(**task_data.model_dump())
+async def create_task(db: AsyncSession, task_data: schemas.TaskCreate, owner_id: int) -> models.Task:
+    db_task = models.Task(**task_data.model_dump(), owner_id=owner_id)
     db.add(db_task)
     await db.commit()
     await db.refresh(db_task)
     return db_task
 
-async def update_task(db: AsyncSession, task_id: int, task_data: schemas.TaskCreate) -> models.Task | None:
-    task = await get_task(db, task_id)
+async def update_task(db: AsyncSession, task_id: int, task_data: schemas.TaskCreate, owner_id: int) -> models.Task | None:
+    task = await get_task(db, task_id, owner_id)
     if not task:
         return None
     task.title = task_data.title
@@ -40,8 +43,8 @@ async def update_task(db: AsyncSession, task_id: int, task_data: schemas.TaskCre
     await db.refresh(task)
     return task
 
-async def update_task_status(db: AsyncSession, task_id: int, status: schemas.TaskStatus) -> models.Task | None:
-    task = await get_task(db, task_id)
+async def update_task_status(db: AsyncSession, task_id: int, status: schemas.TaskStatus, owner_id: int) -> models.Task | None:
+    task = await get_task(db, task_id, owner_id)
     if not task:
         return None
     task.status = status
@@ -52,8 +55,8 @@ async def update_task_status(db: AsyncSession, task_id: int, status: schemas.Tas
     await db.refresh(task)
     return task
 
-async def delete_task(db: AsyncSession, task_id: int) -> bool:
-    task = await get_task(db, task_id)
+async def delete_task(db: AsyncSession, task_id: int, owner_id: int) -> bool:
+    task = await get_task(db, task_id, owner_id)
     if not task:
         return False
     await db.delete(task)
@@ -67,7 +70,9 @@ async def get_comments_for_task(db: AsyncSession, task_id: int) -> list[models.C
     return result.scalars().all()
 
 async def create_comment(db: AsyncSession, task_id: int, comment_data: schemas.CommentCreate) -> models.Comment | None:
-    task = await get_task(db, task_id)
+    # Комментарии можно оставить доступными всем, если задача доступна
+    result = await db.execute(select(models.Task).where(models.Task.id == task_id))
+    task = result.scalar_one_or_none()
     if not task:
         return None
     db_comment = models.Comment(task_id=task_id, content=comment_data.content)

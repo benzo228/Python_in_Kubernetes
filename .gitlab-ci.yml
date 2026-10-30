@@ -4,10 +4,12 @@ stages:
   - deploy
 
 variables:
-  # Адрес Harbor внутри кластера Minikube
   HARBOR_HOST: "192.168.49.2:30002"
-  # Имя проекта и образа в Harbor
   IMAGE_TAG: "$HARBOR_HOST/pet-project/task-manager:$CI_COMMIT_SHORT_SHA"
+
+# Правило: не запускать пайплайн, если в сообщении коммита есть [skip ci]
+.ci_skip_rule: &ci_skip_rule
+  - if: $CI_COMMIT_BRANCH == "main" && $CI_COMMIT_MESSAGE !~ /\[skip ci\]/
 
 lint:
   stage: lint
@@ -19,8 +21,7 @@ lint:
     - uv pip install --system --no-cache ruff
   script:
     - ruff check app/
-  rules:
-    - if: $CI_COMMIT_BRANCH == "main"
+  rules: *ci_skip_rule
 
 build:
   stage: build
@@ -39,25 +40,23 @@ build:
       --destination "${IMAGE_TAG}"
       --insecure
       --insecure-pull
-  rules:
-    - if: $CI_COMMIT_BRANCH == "main"
+  rules: *ci_skip_rule
 
 deploy:
   stage: deploy
-  image: bitnami/kubectl:latest
+  image: alpine:3.19
   tags:
     - kubernetes
+  before_script:
+    - apk add --no-cache git sed
   script:
-    - kubectl config set-cluster minikube --server="$KUBE_SERVER" --insecure-skip-tls-verify=true
-    - kubectl config set-credentials gitlab --token="$KUBE_TOKEN"
-    - kubectl config set-context default --cluster=minikube --user=gitlab
-    - kubectl config use-context default
-    - kubectl set image deployment/task-manager app="$IMAGE_TAG" -n pet-project
-    - kubectl rollout status deployment/task-manager -n pet-project --timeout=5m
-  after_script:
-    - |
-      if [ "$CI_JOB_STATUS" == "failed" ]; then
-        kubectl rollout undo deployment/task-manager -n pet-project
-      fi
-  rules:
-    - if: $CI_COMMIT_BRANCH == "main"
+    - git clone http://root:${GITLAB_WRITE_TOKEN}@192.168.0.101:8929/root/Python_in_Kubernetes.git repo-update
+    - cd repo-update
+    - git config user.name "ci-writer"
+    - git config user.email "ci@local"
+    - 'sed -i "s|image: .*task-manager.*|image: ${IMAGE_TAG}|" k8s/deployment.yaml'
+    - git add k8s/deployment.yaml
+    # Вот здесь добавляем правильный флаг [skip ci]
+    - git commit -m "Deploy ${CI_COMMIT_SHORT_SHA} [skip ci]"
+    - git push origin main
+  rules: *ci_skip_rule

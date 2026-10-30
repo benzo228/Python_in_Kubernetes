@@ -1,6 +1,7 @@
 # Секреты
 .env
 runner-values.yaml
+argo_cred.txt
 
 # Данные инфраструктуры (не пушим в репозиторий)
 infrastructure/harbor/harbor_helm/
