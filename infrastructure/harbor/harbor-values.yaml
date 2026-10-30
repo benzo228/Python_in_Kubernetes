@@ -1,0 +1,84 @@
+# --- Сеть ---
+expose:
+  type: nodePort
+  tls:
+    enabled: false  # Для локальной разработки TLS не нужен, это ускоряет запуск
+  nodePort:
+    name: harbor
+    ports:
+      http:
+        port: 30002
+        nodePort: 30002
+
+externalURL: http://192.168.49.2:30002  # Внутренний IP Minikube, чтобы K8s мог пулить образы
+
+# --- Администратор ---
+harborAdminPassword: "Harbor12345"
+
+# --- Персистентность (чтобы данные не терялись при пересоздании подов) ---
+persistence:
+  enabled: true
+  resourcePolicy: "keep"  # Важно: сохранять PVC даже при удалении Helm-релиза [citation:3]
+  persistentVolumeClaim:
+    registry:
+      size: 5Gi  # Для локальных тестов достаточно 5 ГБ
+    database:
+      size: 1Gi
+    redis:
+      size: 1Gi
+    jobservice:
+      size: 1Gi
+
+# --- Отключаем или ограничиваем тяжёлые компоненты ---
+# Trivy (сканер уязвимостей) полезен, но потребляет ресурсы. Для скорости можно отключить.
+trivy:
+  enabled: false  # Отключите, если не сканируете образы локально
+
+# Jobservice нужен для фоновых задач (например, очистки), но ему можно урезать ресурсы
+jobservice:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+
+# Core и Registry — основные компоненты, им можно дать минимальные лимиты
+core:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+registry:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+
+# База данных и Redis — StatefulSet, им хватит минимальных ресурсов
+database:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 100m
+      memory: 256Mi
+
+redis:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi

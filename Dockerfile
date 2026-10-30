@@ -23,5 +23,5 @@ USER appuser
 
 EXPOSE 8000
 
-# Запускаем uvicorn (уже установлен через uv)
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Даем время на инициализацию DNS перед запуском uvicorn
+CMD ["sh", "-c", "sleep 5 && uvicorn app.main:app --host 0.0.0.0 --port 8000"]

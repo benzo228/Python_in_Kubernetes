@@ -20,7 +20,7 @@ spec:
       - name: harbor-credentials
       containers:
       - name: app
-        image: placeholder-task-manager:latest # заглушка, чтобы версии образов менялись
+        image: 192.168.49.2:30002/pet-project/task-manager:1e694ad3
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8000

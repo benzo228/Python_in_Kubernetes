@@ -1,5 +1,5 @@
-import os
 import logging
+
 from kubernetes import client, config
 from kubernetes.client.rest import ApiException
 
@@ -20,9 +20,9 @@ def get_pods(namespace: str = "default"):
         try:
             config.load_kube_config()
             logger.info("Loaded kubeconfig from file")
-        except Exception as e:
+        except RuntimeError as e:  # <-- Исправлено с Exception
             logger.error(f"Failed to load kubeconfig: {e}")
-            return {"error": f"Failed to load kubeconfig: {str(e)}"}
+            return {"error": f"Failed to load kubeconfig: {e!s}"}
 
     v1 = client.CoreV1Api()
     try:
@@ -31,6 +31,6 @@ def get_pods(namespace: str = "default"):
     except ApiException as e:
         logger.error(f"Kubernetes API error: {e.status} - {e.reason}")
         return {"error": f"Kubernetes API error: {e.status} - {e.reason}"}
-    except Exception as e:
-        logger.error(f"Unexpected error: {str(e)}")
-        return {"error": f"Unexpected error: {str(e)}"}
+    except RuntimeError as e:  # <-- Исправлено с Exception
+        logger.error(f"Unexpected error: {e!s}")
+        return {"error": f"Unexpected error: {e!s}"}

@@ -3,267 +3,329 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Task Manager + K8s</title>
+    <title>TaskPro | Dashboard</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
     <style>
-        body { padding-top: 2rem; }
-        .task-card { margin-bottom: 1rem; }
-        .task-card .card-body { padding: 1rem; }
-        .comment { background: #f8f9fa; padding: 0.5rem 1rem; border-radius: 8px; margin-bottom: 0.5rem; }
-        .status-badge { font-size: 0.8rem; }
-        .comment-form { margin-top: 0.5rem; }
+        :root {
+            --bg-dark: #13131a;
+            --bg-card: #1c1c24;
+            --text-main: #e0e0e0;
+            --accent: #6c5ce7;
+            --accent-hover: #5b4cc4;
+            --border-color: #2d2d3d;
+        }
+        body { background-color: var(--bg-dark); color: var(--text-main); font-family: 'Inter', sans-serif; }
+        .sidebar { background-color: var(--bg-card); min-height: 100vh; border-right: 1px solid var(--border-color); padding-top: 20px; }
+        .card { background-color: var(--bg-card); border: 1px solid var(--border-color); border-radius: 12px; color: var(--text-main); box-shadow: 0 4px 6px rgba(0,0,0,0.3); transition: transform 0.2s; }
+        .card:hover { transform: translateY(-2px); }
+        .btn-primary { background-color: var(--accent); border-color: var(--accent); }
+        .btn-primary:hover { background-color: var(--accent-hover); border-color: var(--accent-hover); }
+        .form-control, .form-select { background-color: #13131a; border: 1px solid var(--border-color); color: var(--text-main); }
+        .form-control:focus, .form-select:focus { background-color: #13131a; color: var(--text-main); border-color: var(--accent); box-shadow: 0 0 0 0.25rem rgba(108, 92, 231, 0.25); }
+        .form-select option { background-color: var(--bg-dark); color: var(--text-main); }
+        .nav-link { color: #a0a0a0; border-radius: 8px; margin-bottom: 5px; }
+        .nav-link:hover, .nav-link.active { color: #fff; background-color: rgba(108, 92, 231, 0.2); }
+        .status-badge { font-size: 0.75rem; padding: 5px 10px; border-radius: 20px; display: inline-block; margin-bottom: 10px;}
+        .status-pending { background: rgba(255, 193, 7, 0.2); color: #ffc107; }
+        .status-in_progress { background: rgba(13, 202, 240, 0.2); color: #0dcaf0; }
+        .status-completed { background: rgba(25, 135, 84, 0.2); color: #198754; }
+        .comment { background: rgba(255,255,255,0.05); padding: 8px 12px; border-radius: 8px; margin-bottom: 8px; border-left: 3px solid var(--accent); }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1 class="mb-4">📋 Менеджер задач</h1>
 
-        <!-- Форма добавления -->
-        <div class="card mb-4">
-            <div class="card-body">
-                <h5 class="card-title">Новая задача</h5>
-                <div class="row g-3">
-                    <div class="col-md-4">
-                        <input type="text" id="taskTitle" class="form-control" placeholder="Название">
-                    </div>
-                    <div class="col-md-4">
-                        <input type="text" id="taskDesc" class="form-control" placeholder="Описание">
-                    </div>
-                    <div class="col-md-2">
-                        <select id="taskStatus" class="form-select">
-                            <option value="pending">⏳ В ожидании</option>
-                            <option value="in_progress">🔄 В работе</option>
-                            <option value="completed">✅ Завершена</option>
-                        </select>
-                    </div>
-                    <div class="col-md-2">
-                        <button id="addBtn" class="btn btn-primary w-100">➕ Добавить</button>
+<!-- ЭКРАН АВТОРИЗАЦИИ -->
+<div id="authScreen" class="d-none align-items-center justify-content-center vh-100">
+    <div class="card p-5" style="width: 400px;">
+        <div class="text-center mb-4">
+            <h2 class="fw-bold">Task<span style="color: var(--accent)">Pro</span></h2>
+            <p class="text-muted">Войдите, чтобы управлять задачами</p>
+        </div>
+        <div id="authError" class="alert alert-danger d-none py-2"></div>
+        <input type="text" id="username" class="form-control mb-3" placeholder="Имя пользователя">
+        <input type="password" id="password" class="form-control mb-4" placeholder="Пароль">
+        <button class="btn btn-primary w-100 mb-2" onclick="login()">Войти</button>
+        <button class="btn btn-outline-light w-100" onclick="register()">Создать аккаунт</button>
+    </div>
+</div>
+
+<!-- ОСНОВНОЙ ЭКРАН -->
+<div id="mainScreen" class="d-none">
+    <div class="container-fluid">
+        <div class="row">
+            <nav class="col-md-3 col-lg-2 d-md-block sidebar collapse">
+                <div class="position-sticky pt-3">
+                    <h4 class="text-center mb-4 fw-bold">Task<span style="color: var(--accent)">Pro</span></h4>
+                    <ul class="nav flex-column px-3">
+                        <li class="nav-item">
+                            <a class="nav-link active" href="#">
+                                <i class="bi bi-grid me-2"></i> Мои задачи
+                            </a>
+                        </li>
+                        <li class="nav-item mt-5">
+                            <a class="nav-link text-danger" href="#" onclick="logout()">
+                                <i class="bi bi-box-arrow-right me-2"></i> Выйти
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </nav>
+
+            <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4 py-4">
+                <div class="d-flex justify-content-between align-items-center pt-3 pb-2 mb-3 border-bottom" style="border-color: var(--border-color) !important;">
+                    <h1 class="h2">Дашборд</h1>
+                    <div class="text-muted"><i class="bi bi-person-circle me-1"></i> <span id="currentUser"></span></div>
+                </div>
+
+                <!-- Форма добавления -->
+                <div class="card mb-4 p-3">
+                    <h6 class="mb-3 text-muted">Создать задачу</h6>
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <input type="text" id="taskTitle" class="form-control" placeholder="Что нужно сделать?">
+                        </div>
+                        <div class="col-md-3">
+                            <input type="text" id="taskDesc" class="form-control" placeholder="Детали (опционально)">
+                        </div>
+                        <div class="col-md-3">
+                            <select id="taskStatus" class="form-select">
+                                <option value="pending">⏳ В ожидании</option>
+                                <option value="in_progress">🔄 В работе</option>
+                                <option value="completed">✅ Завершена</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <button id="addBtn" class="btn btn-primary w-100"><i class="bi bi-plus-lg"></i> Создать</button>
+                        </div>
                     </div>
                 </div>
-            </div>
-        </div>
 
-        <!-- Фильтр по статусу -->
-        <div class="mb-3">
-            <label>Фильтр по статусу:</label>
-            <select id="statusFilter" class="form-select w-auto d-inline-block ms-2">
-                <option value="">Все</option>
-                <option value="pending">⏳ В ожидании</option>
-                <option value="in_progress">🔄 В работе</option>
-                <option value="completed">✅ Завершена</option>
-            </select>
-            <button id="filterBtn" class="btn btn-outline-secondary ms-2">Применить</button>
-            <button id="resetFilterBtn" class="btn btn-outline-danger ms-2">Сбросить</button>
-        </div>
+                <!-- Фильтры -->
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-sm btn-outline-light" onclick="loadTasks('')">Все</button>
+                        <button class="btn btn-sm btn-outline-warning" onclick="loadTasks('pending')">В ожидании</button>
+                        <button class="btn btn-sm btn-outline-info" onclick="loadTasks('in_progress')">В работе</button>
+                        <button class="btn btn-sm btn-outline-success" onclick="loadTasks('completed')">Завершенные</button>
+                    </div>
+                    <button class="btn btn-sm btn-outline-secondary" onclick="showPods()"><i class="bi bi-hdd-network"></i> Поды в K8s</button>
+                </div>
+                <div id="podsOutput" class="mb-3 p-3 rounded" style="background: #0a0a0f; border: 1px solid var(--border-color); display: none; font-family: monospace;"></div>
 
-        <!-- Список задач -->
-        <div id="taskList">
-            <!-- Задачи будут рендериться сюда -->
-        </div>
-
-        <!-- Кнопка для получения подов -->
-        <div class="mt-4">
-            <button id="getPodsBtn" class="btn btn-secondary">☸️ Показать поды в K8s</button>
-            <div id="podsOutput" class="mt-3" style="white-space: pre-wrap; background: #f0f0f0; padding: 1rem; border-radius: 5px; display: none;"></div>
+                <!-- Список задач -->
+                <div class="row" id="taskList"></div>
+            </main>
         </div>
     </div>
+</div>
 
-    <script>
-        const API_BASE = '/api';
+<script>
+    const API_BASE = '/api';
+    let token = localStorage.getItem('token');
+    let currentUsername = localStorage.getItem('username');
 
-        // Загрузить задачи с фильтром
-        async function loadTasks(status = '') {
-            const url = status ? `${API_BASE}/tasks?status=${status}` : `${API_BASE}/tasks`;
-            const resp = await fetch(url);
-            const tasks = await resp.json();
-            const container = document.getElementById('taskList');
-            if (tasks.length === 0) {
-                container.innerHTML = '<div class="alert alert-info">Нет задач. Создайте первую!</div>';
-                return;
-            }
-            container.innerHTML = tasks.map(task => renderTask(task)).join('');
-            // После рендера вешаем обработчики на кнопки комментариев
-            tasks.forEach(task => {
-                const collapseId = `collapseComments-${task.id}`;
-                const btn = document.getElementById(`toggleCommentsBtn-${task.id}`);
-                if (btn) {
-                    btn.addEventListener('click', () => {
-                        const collapse = document.getElementById(collapseId);
-                        if (collapse.classList.contains('show')) {
-                            collapse.classList.remove('show');
-                            btn.textContent = '📝 Показать комментарии';
-                        } else {
-                            collapse.classList.add('show');
-                            btn.textContent = '📝 Скрыть комментарии';
-                            loadComments(task.id);
-                        }
-                    });
-                }
-                // Обработчик отправки комментария
-                const form = document.getElementById(`commentForm-${task.id}`);
-                if (form) {
-                    form.addEventListener('submit', async (e) => {
-                        e.preventDefault();
-                        const input = form.querySelector('input');
-                        const content = input.value.trim();
-                        if (!content) return;
-                        await fetch(`${API_BASE}/tasks/${task.id}/comments`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ content })
-                        });
-                        input.value = '';
-                        loadComments(task.id);
-                    });
-                }
-                // Обработчик изменения статуса (отправляем JSON в теле)
-                const statusSelect = document.getElementById(`statusSelect-${task.id}`);
-                if (statusSelect) {
-                    statusSelect.addEventListener('change', async () => {
-                        const newStatus = statusSelect.value;
-                        await fetch(`${API_BASE}/tasks/${task.id}/status`, {
-                            method: 'PATCH',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ status: newStatus })
-                        });
-                        loadTasks(document.getElementById('statusFilter').value);
-                    });
-                }
-            });
+    // Инициализация
+    if (token) {
+        document.getElementById('mainScreen').classList.remove('d-none');
+        document.getElementById('currentUser').innerText = currentUsername;
+        loadTasks('');
+    } else {
+        document.getElementById('authScreen').classList.remove('d-none');
+        document.getElementById('authScreen').classList.add('d-flex');
+    }
+
+    function showError(msg) {
+        const el = document.getElementById('authError');
+        el.innerText = msg;
+        el.classList.remove('d-none');
+        setTimeout(() => el.classList.add('d-none'), 3000);
+    }
+
+    async function register() {
+        const u = document.getElementById('username').value;
+        const p = document.getElementById('password').value;
+        if(!u || !p) return showError("Заполните все поля");
+        
+        const resp = await fetch(`${API_BASE}/auth/register`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({username: u, password: p})
+        });
+        if (resp.ok) {
+            showError("Успешно! Теперь войдите.");
+            document.getElementById('password').value = '';
+        } else {
+            showError("Ошибка регистрации (возможно, имя занято)");
+        }
+    }
+
+    async function login() {
+        const u = document.getElementById('username').value;
+        const p = document.getElementById('password').value;
+        const formData = new URLSearchParams();
+        formData.append('username', u);
+        formData.append('password', p);
+
+        const resp = await fetch(`${API_BASE}/auth/login`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            body: formData
+        });
+        if (resp.ok) {
+            const data = await resp.json();
+            localStorage.setItem('token', data.access_token);
+            localStorage.setItem('username', u);
+            window.location.reload();
+        } else {
+            showError("Неверный логин или пароль");
+        }
+    }
+
+    function logout() {
+        localStorage.removeItem('token');
+        localStorage.removeItem('username');
+        window.location.reload();
+    }
+
+    async function fetchWithAuth(url, options = {}) {
+        options.headers = { ...options.headers, 'Authorization': `Bearer ${token}` };
+        const resp = await fetch(url, options);
+        if (resp.status === 401) logout();
+        return resp;
+    }
+
+    async function loadTasks(status = '') {
+        const url = status ? `${API_BASE}/tasks?status=${status}` : `${API_BASE}/tasks`;
+        const resp = await fetchWithAuth(url);
+        const tasks = await resp.json();
+        const container = document.getElementById('taskList');
+        
+        if (tasks.length === 0) {
+            container.innerHTML = '<div class="col-12 text-center text-muted mt-5"><i class="bi bi-inbox fs-1"></i><br>Задач пока нет</div>';
+            return;
         }
 
-        // Рендер одной задачи (карточка)
-        function renderTask(task) {
-            const statusLabels = {
-                pending: '⏳ В ожидании',
-                in_progress: '🔄 В работе',
-                completed: '✅ Завершена'
-            };
-            const statusClasses = {
-                pending: 'bg-warning text-dark',
-                in_progress: 'bg-info text-white',
-                completed: 'bg-success text-white'
-            };
-            return `
-                <div class="card task-card">
-                    <div class="card-body">
-                        <div class="d-flex justify-content-between align-items-start">
-                            <div>
-                                <h5 class="card-title mb-1">${task.title}</h5>
-                                ${task.description ? `<p class="card-text text-muted small">${task.description}</p>` : ''}
-                                <span class="badge ${statusClasses[task.status]} status-badge">${statusLabels[task.status]}</span>
-                                ${task.completed_at ? `<span class="badge bg-secondary">Завершена: ${new Date(task.completed_at).toLocaleString()}</span>` : ''}
-                            </div>
-                            <div>
-                                <select id="statusSelect-${task.id}" class="form-select form-select-sm d-inline-block w-auto">
-                                    <option value="pending" ${task.status === 'pending' ? 'selected' : ''}>⏳ В ожидании</option>
-                                    <option value="in_progress" ${task.status === 'in_progress' ? 'selected' : ''}>🔄 В работе</option>
-                                    <option value="completed" ${task.status === 'completed' ? 'selected' : ''}>✅ Завершена</option>
-                                </select>
-                                <button class="btn btn-sm btn-outline-danger ms-2" onclick="deleteTask(${task.id})">🗑️</button>
-                            </div>
-                        </div>
-                        <div class="mt-2">
-                            <button id="toggleCommentsBtn-${task.id}" class="btn btn-sm btn-outline-secondary">📝 Показать комментарии</button>
-                        </div>
-                        <div class="collapse mt-2" id="collapseComments-${task.id}">
-                            <div id="commentsContainer-${task.id}">
-                                <div class="text-muted small">Комментарии загружаются...</div>
-                            </div>
-                            <form id="commentForm-${task.id}" class="comment-form d-flex gap-2">
-                                <input type="text" class="form-control form-control-sm" placeholder="Написать комментарий..." required>
-                                <button type="submit" class="btn btn-sm btn-primary">➕</button>
+        container.innerHTML = tasks.map(task => `
+            <div class="col-md-6 col-lg-4 mb-4">
+                <div class="card h-100 p-3">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <h5 class="card-title mb-0">${task.title}</h5>
+                        <button class="btn btn-sm text-danger p-0" onclick="deleteTask(${task.id})"><i class="bi bi-trash"></i></button>
+                    </div>
+                    <p class="card-text text-muted small flex-grow-1">${task.description || 'Без описания'}</p>
+                    
+                    <span class="status-badge status-${task.status}">
+                        ${task.status === 'pending' ? 'Ожидает' : task.status === 'in_progress' ? 'В работе' : 'Завершено'}
+                    </span>
+
+                    <div class="mt-3 pt-3 border-top" style="border-color: var(--border-color) !important;">
+                        <select class="form-select form-select-sm mb-3" onchange="updateStatus(${task.id}, this.value)">
+                            <option value="pending" ${task.status === 'pending' ? 'selected' : ''}>⏳ В ожидании</option>
+                            <option value="in_progress" ${task.status === 'in_progress' ? 'selected' : ''}>🔄 В работе</option>
+                            <option value="completed" ${task.status === 'completed' ? 'selected' : ''}>✅ Завершена</option>
+                        </select>
+
+                        <button class="btn btn-sm btn-outline-light w-100 mb-2" onclick="toggleComments(${task.id})">
+                            <i class="bi bi-chat-left-text"></i> Комментарии
+                        </button>
+                        
+                        <div id="comments-${task.id}" class="d-none mt-2">
+                            <div id="commentsList-${task.id}" class="mb-2"></div>
+                            <form onsubmit="addComment(event, ${task.id})" class="d-flex gap-2">
+                                <input type="text" class="form-control form-control-sm" placeholder="Написать..." required>
+                                <button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-send"></i></button>
                             </form>
                         </div>
                     </div>
                 </div>
-            `;
-        }
+            </div>
+        `).join('');
+    }
 
-        // Загрузить комментарии для задачи
-        async function loadComments(taskId) {
-            const container = document.getElementById(`commentsContainer-${taskId}`);
-            try {
-                const resp = await fetch(`${API_BASE}/tasks/${taskId}/comments`);
-                const comments = await resp.json();
-                if (comments.length === 0) {
-                    container.innerHTML = '<div class="text-muted small">Нет комментариев.</div>';
-                } else {
-                    container.innerHTML = comments.map(c =>
-                        `<div class="comment d-flex justify-content-between">
-                            <span>${c.content}</span>
-                            <small class="text-muted">${new Date(c.created_at).toLocaleString()}</small>
-                            <button class="btn btn-sm btn-outline-danger" onclick="deleteComment(${c.id}, ${taskId})">×</button>
-                        </div>`
-                    ).join('');
-                }
-            } catch (e) {
-                container.innerHTML = '<div class="text-danger small">Ошибка загрузки комментариев.</div>';
-            }
-        }
+    document.getElementById('addBtn').addEventListener('click', async () => {
+        const title = document.getElementById('taskTitle').value;
+        const description = document.getElementById('taskDesc').value;
+        const status = document.getElementById('taskStatus').value;
+        if (!title) return alert('Введите название');
 
-        // Удалить комментарий
-        async function deleteComment(commentId, taskId) {
-            if (!confirm('Удалить комментарий?')) return;
-            await fetch(`${API_BASE}/comments/${commentId}`, { method: 'DELETE' });
-            loadComments(taskId);
-        }
-
-        // Добавить задачу
-        document.getElementById('addBtn').addEventListener('click', async () => {
-            const title = document.getElementById('taskTitle').value.trim();
-            const description = document.getElementById('taskDesc').value.trim();
-            const status = document.getElementById('taskStatus').value;
-            if (!title) return alert('Название не может быть пустым');
-
-            await fetch(`${API_BASE}/tasks`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ title, description, status })
-            });
-            document.getElementById('taskTitle').value = '';
-            document.getElementById('taskDesc').value = '';
-            document.getElementById('taskStatus').value = 'pending';
-            loadTasks(document.getElementById('statusFilter').value);
+        await fetchWithAuth(`${API_BASE}/tasks`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ title, description, status })
         });
-
-        // Удалить задачу
-        async function deleteTask(id) {
-            if (!confirm('Удалить задачу (все комментарии тоже будут удалены)?')) return;
-            await fetch(`${API_BASE}/tasks/${id}`, { method: 'DELETE' });
-            loadTasks(document.getElementById('statusFilter').value);
-        }
-
-        // Фильтр
-        document.getElementById('filterBtn').addEventListener('click', () => {
-            const status = document.getElementById('statusFilter').value;
-            loadTasks(status);
-        });
-        document.getElementById('resetFilterBtn').addEventListener('click', () => {
-            document.getElementById('statusFilter').value = '';
-            loadTasks('');
-        });
-
-        // Получить поды
-        document.getElementById('getPodsBtn').addEventListener('click', async () => {
-            const output = document.getElementById('podsOutput');
-            output.style.display = 'block';
-            output.textContent = 'Загрузка...';
-            try {
-                const resp = await fetch(`${API_BASE}/k8s/pods?namespace=default`);
-                const data = await resp.json();
-                if (data.pods) {
-                    output.textContent = data.pods.map(p => `${p.name} — ${p.status}`).join('\n');
-                } else {
-                    output.textContent = JSON.stringify(data, null, 2);
-                }
-            } catch (e) {
-                output.textContent = 'Ошибка: ' + e.message;
-            }
-        });
-
-        // Инициализация
+        
+        document.getElementById('taskTitle').value = '';
+        document.getElementById('taskDesc').value = '';
         loadTasks('');
-    </script>
+    });
+
+    async function updateStatus(id, status) {
+        await fetchWithAuth(`${API_BASE}/tasks/${id}/status`, {
+            method: 'PATCH',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ status })
+        });
+        loadTasks('');
+    }
+
+    async function deleteTask(id) {
+        if (!confirm('Удалить задачу?')) return;
+        await fetchWithAuth(`${API_BASE}/tasks/${id}`, { method: 'DELETE' });
+        loadTasks('');
+    }
+
+    async function toggleComments(taskId) {
+        const el = document.getElementById(`comments-${taskId}`);
+        if (el.classList.contains('d-none')) {
+            el.classList.remove('d-none');
+            await loadComments(taskId);
+        } else {
+            el.classList.add('d-none');
+        }
+    }
+
+    async function loadComments(taskId) {
+        const container = document.getElementById(`commentsList-${taskId}`);
+        const resp = await fetchWithAuth(`${API_BASE}/tasks/${taskId}/comments`);
+        const comments = await resp.json();
+        if(comments.length === 0) {
+            container.innerHTML = '<div class="text-muted small">Нет комментариев</div>';
+            return;
+        }
+        container.innerHTML = comments.map(c => `
+            <div class="comment d-flex justify-content-between align-items-center">
+                <span class="small">${c.content}</span>
+                <button class="btn btn-sm text-danger p-0 ms-2" onclick="deleteComment(${c.id}, ${taskId})"><i class="bi bi-x"></i></button>
+            </div>
+        `).join('');
+    }
+
+    async function addComment(e, taskId) {
+        e.preventDefault();
+        const input = e.target.querySelector('input');
+        await fetchWithAuth(`${API_BASE}/tasks/${taskId}/comments`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ content: input.value })
+        });
+        input.value = '';
+        await loadComments(taskId);
+    }
+
+    async function deleteComment(commentId, taskId) {
+        await fetchWithAuth(`${API_BASE}/comments/${commentId}`, { method: 'DELETE' });
+        await loadComments(taskId);
+    }
+
+    async function showPods() {
+        const output = document.getElementById('podsOutput');
+        output.style.display = 'block';
+        output.textContent = 'Загрузка...';
+        const resp = await fetchWithAuth(`${API_BASE}/k8s/pods?namespace=pet-project`);
+        const data = await resp.json();
+        output.innerHTML = data.pods ? data.pods.map(p => `<div><span class="text-success">●</span> ${p.name} <span class="text-muted">(${p.status})</span></div>`).join('') : JSON.stringify(data);
+    }
+</script>
 </body>
 </html>

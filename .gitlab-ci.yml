@@ -1,57 +1,62 @@
 stages:
-  - build
   - lint
+  - build
   - deploy
 
 variables:
-  HARBOR_HOST: "192.168.0.200:30002"
-  APP_URL: "http://192.168.0.200"
+  HARBOR_HOST: "192.168.49.2:30002"
+  IMAGE_TAG: "$HARBOR_HOST/pet-project/task-manager:$CI_COMMIT_SHORT_SHA"
+
+# Правило: не запускать пайплайн, если в сообщении коммита есть [skip ci]
+.ci_skip_rule: &ci_skip_rule
+  - if: $CI_COMMIT_BRANCH == "main" && $CI_COMMIT_MESSAGE !~ /\[skip ci\]/
+
+lint:
+  stage: lint
+  image: python:3.12-slim
+  tags:
+    - kubernetes
+  before_script:
+    - pip install --no-cache-dir uv
+    - uv pip install --system --no-cache ruff
+  script:
+    - ruff check app/
+  rules: *ci_skip_rule
 
 build:
   stage: build
   image:
     name: gcr.io/kaniko-project/executor:debug
     entrypoint: [""]
+  tags:
+    - kubernetes
   before_script:
     - mkdir -p /kaniko/.docker
-    - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" > /kaniko/.docker/config.json
+    - echo "{\"auths\":{\"$HARBOR_HOST\":{\"username\":\"$HARBOR_USER\",\"password\":\"$HARBOR_PASSWORD\"}}}" > /kaniko/.docker/config.json
   script:
     - /kaniko/executor
       --context "${CI_PROJECT_DIR}"
       --dockerfile "${CI_PROJECT_DIR}/Dockerfile"
-      --cache=true
-      --cache-repo="${CI_REGISTRY_IMAGE}/cache"
-      --destination "${CI_REGISTRY_IMAGE}:${CI_COMMIT_SHORT_SHA}"
-      --destination "${CI_REGISTRY_IMAGE}:latest"
-  rules:
-    - if: $CI_COMMIT_BRANCH == "main"
-
-lint:
-  stage: lint
-  image: python:3.12-slim
-  before_script:
-    - pip install --no-cache-dir uv
-    - uv pip install --system --no-cache ruff
-  script:
-    - ruff check app/
-  rules:
-    - if: $CI_COMMIT_BRANCH == "main"
+      --destination "${IMAGE_TAG}"
+      --insecure
+      --insecure-pull
+  rules: *ci_skip_rule
 
 deploy:
   stage: deploy
-  image: bitnami/kubectl:latest
+  image: alpine:3.19
+  tags:
+    - kubernetes
+  before_script:
+    - apk add --no-cache git sed
   script:
-    - export CI_REGISTRY_IMAGE="${CI_REGISTRY_IMAGE:-${HARBOR_HOST}/pet-project/task-manager}"
-    - envsubst < k8s/deployment.yaml | kubectl apply -f -
-    - kubectl rollout status deployment/task-manager --namespace=pet-project --timeout=5m
-    - kubectl annotate deployment/task-manager kubernetes.io/change-cause="Deploy ${CI_COMMIT_SHORT_SHA}" --namespace=pet-project --overwrite
-  after_script:
-    - |
-      if [ "$CI_JOB_STATUS" == "failed" ]; then
-        kubectl rollout undo deployment/task-manager --namespace=pet-project
-      fi
-  environment:
-    name: production
-    url: ${APP_URL}
-  rules:
-    - if: $CI_COMMIT_BRANCH == "main"
+    - git clone http://root:${GITLAB_WRITE_TOKEN}@192.168.0.101:8929/root/Python_in_Kubernetes.git repo-update
+    - cd repo-update
+    - git config user.name "ci-writer"
+    - git config user.email "ci@local"
+    - 'sed -i "s|image: .*task-manager.*|image: ${IMAGE_TAG}|" k8s/deployment.yaml'
+    - git add k8s/deployment.yaml
+    # Вот здесь добавляем правильный флаг [skip ci]
+    - git commit -m "Deploy ${CI_COMMIT_SHORT_SHA} [skip ci]"
+    - git push origin main
+  rules: *ci_skip_rule

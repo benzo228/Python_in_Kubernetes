@@ -6,19 +6,23 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: http://192.168.0.200:8929/root/python_in_kubernetes.git
+    # Ваш локальный GitLab (IP 192.168.0.101)
+    repoURL: http://192.168.0.101:8929/root/Python_in_Kubernetes.git
     targetRevision: main
     path: k8s
   destination:
+    # Внутренний адрес API Kubernetes (для Argo CD, работающего внутри кластера)
     server: https://kubernetes.default.svc
     namespace: pet-project
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
-  ignoreDifferences:
-  - group: apps
-    kind: Deployment
-    jsonPointers:
-    - /spec/template/spec/containers/0/image
-    - /spec/template/spec/imagePullSecrets
+    syncOptions:
+      - CreateNamespace=true
+#  ignoreDifferences:
+#  - group: apps
+#    kind: Deployment
+#    jsonPointers:
+#    - /spec/template/spec/containers/0/image
+#    - /spec/template/spec/imagePullSecrets

@@ -1,72 +1,23 @@
-# Byte-compiled / optimized / DLL files
-__pycache__/
-*.py[cod]
-*$py.class
-
-# Virtual environments
-.venv/
-venv/
-ENV/
-env/
+# Секреты
 .env
-*.env
+runner-values.yaml
+argo_cred.txt
 
-# uv (если используется)
-.uv/
-uv.lock
+# Данные инфраструктуры (не пушим в репозиторий)
+infrastructure/harbor/harbor_helm/
+infrastructure/harbor/*.tgz
+infrastructure/gitlab/data/
+infrastructure/gitlab/logs/
+infrastructure/gitlab/config/gitlab.rb  # если там есть пароли
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
 
 # IDE
 .vscode/
 .idea/
-*.swp
-*.swo
-*~
 
-# OS generated files
-.DS_Store
-Thumbs.db
-
-# Logs
-*.log
-logs/
-
-# Database files (если будут локальные SQLite)
-*.db
-*.sqlite3
-
-# Docker / Kubernetes local files
-*.kubeconfig
-kubeconfig*
-minikube-*.log
-*.pem
-*.crt
-*.key
-
-# Helm (если будем использовать)
-charts/*/values.local.yaml
-*.tgz
-
-# Terraform (если вдруг)
-*.tfstate*
-.terraform/
-
-# Coverage reports
-htmlcov/
-.coverage
-.tox
-.pytest_cache/
-.mypy_cache/
-.dmypy.json
-dmypy.json
-
-# Local development configs
-config.local.yaml
-secrets.local.yaml
-
-# Our pet project specific
-k8s/secret-*.yaml   # секреты не храним в репозитории
-*.local.yaml
-
-# GitLab runtime
-infrastructure/gitlab/data/
-infrastructure/gitlab/logs/
+# Локальные скрипты синхронизации
+sync_to_github.ps1

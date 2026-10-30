@@ -4,10 +4,10 @@ metadata:
   name: task-manager-service
   namespace: pet-project
 spec:
+  type: ClusterIP
   selector:
     app: task-manager
   ports:
     - protocol: TCP
       port: 80
       targetPort: 8000
-      type: ClusterIP
