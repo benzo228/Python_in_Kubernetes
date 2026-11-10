@@ -13,6 +13,7 @@
 *   **Реестр образов:** Harbor (в Minikube).
 *   **GitOps:** Argo CD (в Minikube).
 *   **Сборка образов:** Kaniko (без Docker-in-Docker).
+*   **Хранение секретов:** Hashicorp Vault, ESO
 
 ## 📂 Структура репозитория
 
