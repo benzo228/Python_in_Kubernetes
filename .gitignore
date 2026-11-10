@@ -1,7 +1,11 @@
 # Секреты
+.env
+runner-values.yaml
 argo_cred.txt
 
 # Данные инфраструктуры (не пушим в репозиторий)
+infrastructure/harbor/harbor_helm/
+infrastructure/harbor/*.tgz
 infrastructure/gitlab/data/
 infrastructure/gitlab/logs/
 
@@ -15,3 +19,4 @@ __pycache__/
 .idea/
 
 # Локальные скрипты синхронизации
+sync_to_github.ps1

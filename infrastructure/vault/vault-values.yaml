@@ -1,0 +1,36 @@
+# vault-values.yaml
+global:
+  enabled: true
+
+server:
+  # Явно включаем standalone-режим (одна реплика)
+  standalone:
+    enabled: true
+  
+  # Настройки хранилища данных (PVC будет создан автоматически)
+  dataStorage:
+    enabled: true
+    size: 1Gi # Для теста хватит с головой
+    storageClass: "standard" # Используем дефолтный StorageClass в Minikube
+    accessMode: ReadWriteOnce
+
+  # Ресурсы для пода
+  resources:
+    requests:
+      memory: 128Mi
+      cpu: 100m
+    limits:
+      memory: 256Mi
+      cpu: 200m
+
+  # Конфигурация самого Vault (file backend для standalone)
+  config: |
+    ui = true
+    listener "tcp" {
+      tls_disable = 1
+      address = "[::]:8200"
+      cluster_address = "[::]:8201"
+    }
+    storage "file" {
+      path = "/vault/data"
+    }
