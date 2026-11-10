@@ -1,0 +1,39 @@
+# Развертывание Vault из архива в директории
+helm upgrade --install vault ./vault-helm-0.34.1 -n vault --create-namespace -f vault-values.yaml
+
+# Инициализация токена для распаковки vault (забираем unseal key из вывода и root token)
+kubectl exec -it vault-0 -n vault -- vault operator init -key-shares=1 -key-threshold=1
+
+#Unseal(распаковка) vault
+kubectl exec -it vault-0 -n vault -- vault operator unseal <ТВОЙ_UNSEAL_KEY>
+
+# Создаем секрет с root token в кластере minikube
+kubectl create secret generic vault-init-token -n vault --from-literal=root_token="<Root token>"
+
+# Применяем манифест job - связь между kubernetes и vault(доверие), задает политики работы и задает роль для приложения task-manager
+kubectl apply -f vault-setup-job.yaml
+
+# Создал ключ к БД в UI Vault
+
+# Установка externals secrets operator(ESO)
+helm repo add external-secrets https://charts.external-secrets.io
+helm repo update
+helm install external-secrets external-secrets/external-secrets -n external-secrets --create-namespace
+
+# Установка CRD
+kubectl apply -f "https://raw.githubusercontent.com/external-secrets/external-secrets/main/deploy/crds/bundle.yaml" --server-side
+
+#Интеграция ESO, связь кластера и vault(авторизация)
+kubectl apply -f k8s/vault-secrets.yaml
+
+
+Логика работы VAULT + ESO
+Git (GitHub/GitLab) — это Чертежи. Здесь лежит весь наш код и YAML-манифесты (как что должно быть построено). Здесь НЕТ паролей.
+
+Argo CD — это Прораб. Он смотрит на чертежи в Git и заставляет Kubernetes строить всё в точности так, как там написано. Если чертеж изменился — он сразу это видит и перестраивает.
+
+Kubernetes (K8s) — это Стройплощадка. Здесь работают наши поды (приложение FastAPI, база данных PostgreSQL).
+
+HashiCorp Vault — это Банковский сейф. Единственное место, где реально хранятся пароли (от БД, JWT-ключи и т.д.).
+
+External Secrets Operator (ESO) — это Инкассатор (Курьер). Он живет в Kubernetes, умеет открывать сейф Vault и приносить секреты прямо на стройплощадку.

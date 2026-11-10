@@ -20,13 +20,14 @@ spec:
       - name: harbor-credentials
       containers:
       - name: app
-        image: 192.168.49.2:30002/pet-project/task-manager:1e694ad3
+        image: 192.168.49.2:30002/pet-project/task-manager:30264312
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8000
+        envFrom:
+        - secretRef:
+            name: task-manager-secret # <--- Подтягиваем секрет от ESO
         env:
-        - name: DATABASE_URL
-          value: "postgresql+asyncpg://postgres:mysecretpassword@postgres-service.pet-project.svc.cluster.local:5432/postgres"
         - name: PORT
           value: "8000"
         resources:
