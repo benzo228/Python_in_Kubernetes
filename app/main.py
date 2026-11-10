@@ -139,9 +139,9 @@ async def k8s_pods(namespace: str = "default", current_user: models.User = Depen
 # ==================== Frontend ====================
 @app.get("/", response_class=HTMLResponse)
 async def frontend(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
+    return templates.TemplateResponse(request, "index.html")
 
 if __name__ == "__main__":
     import uvicorn
     port = int(os.getenv("PORT", "8000"))
-    uvicorn.run("app.main:app", host="0.0.0.0", port=port, reload=False)
+    uvicorn.run("app.main:app", host="0.0.0.0", port=port, reload=False) # nosec B104
